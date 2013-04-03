@@ -1,0 +1,19 @@
+is one that is very useful.
+1) make sure your script runs [this is always useful ;-p]
+2)edit /etc/inittab with your favourite root mode editor [I use sudo vi /etc/inittab YMMV]
+2a) find the line
+1:2345:respawn:/sbin/getty 115200 tty1
+and replace it with
+1:2345:respawn:/bin/login -f USERNAME tty1 </dev/tty1 >/dev/tty1 2>&1
+where username is the name of your login user
+...what this does is an autologin on tty1 [the 1st terminal]
+then edit .bashrc on that user
+and right at the end put something like :-
+if [ $(tty) == /dev/tty1 ]; then
+./script
+fi
+
+
+In ubuntu you edit /etc/init/tty1.conf
+
+Also to turn off motd remove files from /etc/update-motd.d
