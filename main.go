@@ -2,73 +2,91 @@ package main
 
 import (
 	"github.com/nsf/termbox-go"
-	"time"
-	//"strings"
+	"strings"
 	"log"
 	"os"
 )
 
-func draw_n(cb []termbox.Cell, x, y, count int, color termbox.Attribute, ch rune) {
+func draw_n(x, y, count int, color termbox.Attribute, ch rune) {
 	for i := 0; i < count; i++ {
 		termbox.SetCell(x+i, y, ch, color, termbox.ColorDefault)
 	}
 }
 
-type struct Ev {
-	termbox.EventKey
+type Ev struct {
+	termbox.Event
 	ttype string
 }
 
-func keyb() chan string {
-	res := make(chan string)
+func keyb() chan Ev {
+	res := make(chan Ev)
+	var ev termbox.Event
 	go func() {
-loop:
-	for {
-		switch ev := termbox.PollEvent(); ev.Type {
-		case termbox.EventKey:
-			if ev.Key == termbox.KeyCtrlQ {
-				break loop
+	loop:
+		for {
+			switch ev = termbox.PollEvent(); ev.Type {
+			case termbox.EventKey:
+				if ev.Key == termbox.KeyCtrlQ {
+					break loop
+				}
+				ttype := "insert"
+				if ev.Key == termbox.KeyBackspace ||
+				   ev.Key == termbox.KeyBackspace2 {
+					ttype = "backspace"
+				} 
+				log.Println(ev)
+				res <- Ev{ev, ttype}
 			}
-			res <- ev
-		}
-		log.Println("done with switch")
-		select {
-		case <-c:
-			log.Println("booom")
-/*			n := len(strings.Fields(string(buf)))
-			color := termbox.ColorWhite + termbox.Attribute(n/X)
-			c := n / 10
-			draw_n(cb, 0, Y-1, c, color, '#')
-			termbox.Flush()*/
-		default:
-			log.Println("default")
-		}
 
-	}
+		}
+		res <- Ev{ev, "quit"}
 	}()
 	return res
 }
 
-func draw(s chan string) {
+func draw(s chan Ev) chan bool {
 	x, y := 0, 10
-	X, _ := termbox.Size()
+	X, Y := termbox.Size()
 	cb := termbox.CellBuffer()
+	buf := make([]rune, 0, 0)
+	res := make(chan bool)
 	go func() {
+	loop:
 		for {
-			switch ev := <-s {
+			switch ev := <-s; ev.ttype {
 			case "insert":
 				if x == X {
+					cb = termbox.CellBuffer()
 					copy(cb, cb[X:])
 					x = 0
-				} 
-				termbox.SetCell(x, y, ev.Ch, termbox.ColorWhite, termbox.ColorDefault)
+				}
+				termbox.SetCell(x, y, ev.Ch, termbox.ColorWhite, termbox.ColorBlue)
+				if ev.Key == termbox.KeySpace {
+					buf = append(buf, ' ')
+				} else {
+					buf = append(buf, ev.Ch)
+				}
 				x += 1
+				words := strings.Fields(string(buf))
+				draw_n(0, Y-1, len(words), termbox.ColorRed, '#')	
 				termbox.Flush()
+			case "backspace":
+				x -= 1
+				if x == -1 {
+					y = y-1
+					x = X-1
+				}
+				termbox.SetCell(x, y, ' ', termbox.ColorWhite, termbox.ColorDefault)
+				termbox.Flush()
+			case "quit":
+				break loop
 
 			}
 
 		}
+		res <- true
 	}()
+	return res
 }
 
 func main() {
@@ -87,9 +105,7 @@ func main() {
 
 	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
 	termbox.Flush()
-
-
-	buf := make([]rune, 1024*1024, 1024*1024)
-	c := time.After(10 * time.Second)
+	keychan := keyb()
+	<-draw(keychan)
 
 }
