@@ -3,9 +3,15 @@ package main
 import (
 	"github.com/nsf/termbox-go"
 	"log"
+	"fmt"
 	"os"
 	"strings"
+	"strconv"
+	"flag"
+	"path/filepath"
 )
+
+var R = flag.Int("radius", 20, "radius of the circle")
 
 func draw_n(x, y, count int, color termbox.Attribute, ch rune) {
 	for i := 0; i < count; i++ {
@@ -34,7 +40,6 @@ func keyb() chan Ev {
 					ev.Key == termbox.KeyBackspace2 {
 					ttype = "backspace"
 				}
-				log.Println(ev)
 				res <- Ev{ev, ttype}
 			}
 
@@ -56,7 +61,7 @@ func writePixelFactory(offx, offy int) func(x, y int, ch rune) {
 	return res
 }
 
-func draw(s chan Ev) chan bool {
+func draw(s chan Ev, outf *os.File) chan bool {
 
 	offset := 0
 	_, Y := termbox.Size()
@@ -64,7 +69,7 @@ func draw(s chan Ev) chan bool {
 	buf := make([]rune, 0, 0)
 	res := make(chan bool)
 	write_pixel := writePixelFactory(0, 0)
-	cville := makeCircleVille(3)
+	cville := makeCircleVille(*R)
 	go func() {
 	loop:
 		for {
@@ -78,8 +83,10 @@ func draw(s chan Ev) chan bool {
 				write_pixel(x, y, ev.Ch)
 				if ev.Key == termbox.KeySpace {
 					buf = append(buf, ' ')
+					fmt.Fprintf(outf, " ")
 				} else {
 					buf = append(buf, ev.Ch)
+					fmt.Fprintf(outf, string(ev.Ch))
 				}
 				offset += 1
 				words := strings.Fields(string(buf))
@@ -106,7 +113,24 @@ func draw(s chan Ev) chan bool {
 	return res
 }
 
+func nextFile() string {
+	lst, err := filepath.Glob("a*")
+	if err != nil {
+		log.Fatal(err)
+	}
+	a := []int{}
+	for i := 0; i<len(lst); i++ {
+		v, err := strconv.Atoi(lst[i][1:])
+		if err != nil {
+			log.Println(err)
+		}
+		a = append(a, v)
+	} 
+	return fmt.Sprintf("a%d", max(a)+1)
+}
+
 func main() {
+	flag.Parse()
 	err := termbox.Init()
 	if err != nil {
 		panic(err)
@@ -116,14 +140,19 @@ func main() {
 		log.Fatal(err)
 	}
 	log.SetOutput(logfile)
+	log.Println(*R)
 	defer termbox.Close()
 
 	termbox.SetInputMode(termbox.InputEsc)
 
 	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
 	termbox.Flush()
+	outf, err := os.Create(nextFile())
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer outf.Close()
 	keychan := keyb()
-
-	<-draw(keychan)
+	<-draw(keychan, outf)
 
 }
