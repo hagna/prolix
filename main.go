@@ -5,7 +5,7 @@ import (
 	"log"
 	"fmt"
 	"os"
-	"strings"
+	"time"
 	"strconv"
 	"flag"
 	"path/filepath"
@@ -61,7 +61,17 @@ func writePixelFactory(offx, offy int) func(x, y int, ch rune) {
 	return res
 }
 
-func draw(s chan Ev, outf *os.File) chan bool {
+func createAndSave(fname string, buf []rune) {
+	outf, err := os.Create(fname)
+	defer outf.Close()
+	if err != nil {
+		log.Println(err)
+	}
+	fmt.Fprintf(outf, string(buf))
+}
+
+
+func draw(s <-chan Ev) chan bool {
 
 	offset := 0
 	_, Y := termbox.Size()
@@ -70,10 +80,49 @@ func draw(s chan Ev, outf *os.File) chan bool {
 	res := make(chan bool)
 	write_pixel := writePixelFactory(0, 0)
 	cville := makeCircleVille(*R)
+	saveit := make(chan Ev)
 	go func() {
+		fname := nextFile()
+		modified := true
+		timer := time.After(10 * time.Second)
+		unsaved := 0
+		for {
+			select {
+			case ev := <-saveit:
+				modified = true
+				timer = time.After(10 * time.Second)
+				unsaved++
+				if ev.Key == termbox.KeySpace {
+					buf = append(buf, ' ')
+				} else {
+					buf = append(buf, ev.Ch)
+				}
+				if unsaved > 20 {
+					log.Println("save to file character limit reached")
+					createAndSave(fname, buf)
+					modified = false
+					unsaved = 0
+				}
+				//do nothing
+			case <-timer:
+				timer = time.After(10 * time.Second)
+				if modified {
+					log.Println("idle timeout saving")
+					createAndSave(fname, buf)
+					//save it dang it
+				}
+				modified = false
+			}
+		}
+	}()
+	go func() {
+	words := 0
+	inword := true
 	loop:
 		for {
-			switch ev := <-s; ev.ttype {
+			ev := <-s
+			saveit <- ev
+			switch ev.ttype {
 			case "insert":
 				x, y, err := cville.getxy(offset)
 				if err != nil {
@@ -81,16 +130,14 @@ func draw(s chan Ev, outf *os.File) chan bool {
 					x, y, err = cville.getxy(offset)
 				}
 				write_pixel(x, y, ev.Ch)
-				if ev.Key == termbox.KeySpace {
-					buf = append(buf, ' ')
-					fmt.Fprintf(outf, " ")
-				} else {
-					buf = append(buf, ev.Ch)
-					fmt.Fprintf(outf, string(ev.Ch))
-				}
 				offset += 1
-				words := strings.Fields(string(buf))
-				draw_n(0, Y-1, len(words), termbox.ColorRed, '#')
+				if ev.Key == termbox.KeySpace && inword {
+					words++
+					inword = false
+				} else {
+					inword = true
+				}
+				draw_n(0, Y-1, words, termbox.ColorRed, '#')
 				termbox.Flush()
 			case "backspace":
 				offset -= 1
@@ -100,7 +147,6 @@ func draw(s chan Ev, outf *os.File) chan bool {
 					x, y, err = cville.getxy(offset)
 				}
 				write_pixel(x, y, ' ')
-				//				termbox.SetCell(x, y, ' ', termbox.ColorWhite, termbox.ColorDefault)
 				termbox.Flush()
 			case "quit":
 				break loop
@@ -126,7 +172,20 @@ func nextFile() string {
 		}
 		a = append(a, v)
 	} 
+	if len(a) > 0 {
+	lastfile := fmt.Sprintf("a%d", max(a))
+	finf, err := os.Stat(lastfile)
+	if err != nil {
+		log.Println(err)
+	}
+	log.Printf("size of last file was %d", finf.Size())
+	if finf.Size() < 3 {
+		log.Printf("recycling last file %s", lastfile)
+		return lastfile
+	}
 	return fmt.Sprintf("a%d", max(a)+1)
+	} 
+	return "a1"
 }
 
 func main() {
@@ -147,12 +206,7 @@ func main() {
 
 	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
 	termbox.Flush()
-	outf, err := os.Create(nextFile())
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer outf.Close()
 	keychan := keyb()
-	<-draw(keychan, outf)
+	<-draw(keychan)
 
 }
