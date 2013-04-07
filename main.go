@@ -80,7 +80,7 @@ func draw(s <-chan Ev) chan bool {
 	res := make(chan bool)
 	write_pixel := writePixelFactory(0, 0)
 	cville := makeCircleVille(*R)
-	saveit := make(chan Ev)
+	saveit := make(chan Ev, 10)
 	go func() {
 		fname := nextFile()
 		modified := true
@@ -89,6 +89,7 @@ func draw(s <-chan Ev) chan bool {
 		for {
 			select {
 			case ev := <-saveit:
+				log.Println("found save it event")
 				modified = true
 				timer = time.After(10 * time.Second)
 				unsaved++
@@ -98,12 +99,10 @@ func draw(s <-chan Ev) chan bool {
 					buf = append(buf, ev.Ch)
 				}
 				if unsaved > 20 {
-					log.Println("save to file character limit reached")
 					createAndSave(fname, buf)
 					modified = false
 					unsaved = 0
 				}
-				//do nothing
 			case <-timer:
 				timer = time.After(10 * time.Second)
 				if modified {
