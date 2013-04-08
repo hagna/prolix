@@ -1,17 +1,15 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"github.com/nsf/termbox-go"
 	"log"
-	"fmt"
 	"os"
-	"time"
-	"strconv"
-	"flag"
 	"path/filepath"
+	"strconv"
+	"time"
 )
-
-var R = flag.Int("radius", 20, "radius of the circle")
 
 func draw_n(x, y, count int, color termbox.Attribute, ch rune) {
 	for i := 0; i < count; i++ {
@@ -22,9 +20,9 @@ func draw_n(x, y, count int, color termbox.Attribute, ch rune) {
 func draw_words(X, Y, words int) {
 	color := termbox.ColorDefault
 	col := words / X
-	rest := words - col * X
-	log.Printf("class is %d and rest is %d\n", col, rest)
-	draw_n(0, Y-1, rest, color, '#'+ rune(col))
+	rest := words - col*X
+
+	draw_n(0, Y-1, rest, color, '#'+rune(col))
 }
 
 type Ev struct {
@@ -85,17 +83,14 @@ func saveBuf(fname string, buf []rune, modified bool) {
 	}
 }
 
-
 func draw(s <-chan Ev) chan bool {
 
-	offset := 0
 	X, Y := termbox.Size()
-
+	offset := 0
 	buf := make([]rune, 0, 0)
 	res := make(chan bool)
 	write_pixel := writePixelFactory(0, 0)
-	//cville := makeCircleVille(*R)
-	cville := makeRectVille(-5, -5, 10, 10)
+	cville := makeRectVille(-X/2+1, Y/2-2, X-3, Y-4)
 	saveit := make(chan Ev)
 	go func() {
 		fname := nextFile()
@@ -113,8 +108,10 @@ func draw(s <-chan Ev) chan bool {
 				} else if ev.Key == termbox.KeyBackspace ||
 					ev.Key == termbox.KeyBackspace2 {
 					buf = buf[:len(buf)-1]
- 				} else {
+				} else if ev.Ch > '!' && ev.Ch < '}' {
 					buf = append(buf, ev.Ch)
+				} else if ev.Key == termbox.KeyEnter {
+					buf = append(buf, '\n')
 				}
 				if unsaved > 20 || ev.ttype == "quit" {
 					saveBuf(fname, buf, modified)
@@ -123,15 +120,14 @@ func draw(s <-chan Ev) chan bool {
 				}
 			case <-timer:
 				timer = time.After(10 * time.Second)
-				log.Println("idle timeout saving")
 				saveBuf(fname, buf, modified)
 				modified = false
 			}
 		}
 	}()
 	go func() {
-	words := 0
-	inword := true
+		words := 0
+		inword := true
 	loop:
 		for {
 			select {
@@ -144,18 +140,24 @@ func draw(s <-chan Ev) chan bool {
 						offset = 0
 						x, y, err = cville.getxy(offset)
 					}
-					offset += 1
+
 					if ev.Key == termbox.KeySpace {
 						if inword {
 							words++
-						} 
+						}
 						write_pixel(x, y, ' ')
+						offset += 1
 						inword = false
-					} else {
+					} else if ev.Ch > '!' && ev.Ch < '}' {
 						write_pixel(x, y, ev.Ch)
+						offset += 1
 						inword = true
+					} else if ev.Key == termbox.KeyEnter {
+
+						offset = cville.crlf(offset)
+
 					}
-					
+
 					draw_words(X, Y, words)
 					termbox.Flush()
 				case "backspace":
@@ -185,26 +187,26 @@ func nextFile() string {
 		log.Fatal(err)
 	}
 	a := []int{}
-	for i := 0; i<len(lst); i++ {
+	for i := 0; i < len(lst); i++ {
 		v, err := strconv.Atoi(lst[i][1:])
 		if err != nil {
 			log.Println(err)
 		}
 		a = append(a, v)
-	} 
+	}
 	if len(a) > 0 {
-	lastfile := fmt.Sprintf("a%d", max(a))
-	finf, err := os.Stat(lastfile)
-	if err != nil {
-		log.Println(err)
+		lastfile := fmt.Sprintf("a%d", max(a))
+		finf, err := os.Stat(lastfile)
+		if err != nil {
+			log.Println(err)
+		}
+		log.Printf("size of last file was %d", finf.Size())
+		if finf.Size() < 3 {
+			log.Printf("recycling last file %s", lastfile)
+			return lastfile
+		}
+		return fmt.Sprintf("a%d", max(a)+1)
 	}
-	log.Printf("size of last file was %d", finf.Size())
-	if finf.Size() < 3 {
-		log.Printf("recycling last file %s", lastfile)
-		return lastfile
-	}
-	return fmt.Sprintf("a%d", max(a)+1)
-	} 
 	return "a1"
 }
 
@@ -219,7 +221,6 @@ func main() {
 		log.Fatal(err)
 	}
 	log.SetOutput(logfile)
-	log.Println(*R)
 	defer termbox.Close()
 
 	termbox.SetInputMode(termbox.InputEsc)
