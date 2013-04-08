@@ -19,6 +19,14 @@ func draw_n(x, y, count int, color termbox.Attribute, ch rune) {
 	}
 }
 
+func draw_words(X, Y, words int) {
+	color := termbox.ColorDefault
+	col := words / X
+	rest := words - col * X
+	log.Printf("class is %d and rest is %d\n", col, rest)
+	draw_n(0, Y-1, rest, color, '#'+ rune(col))
+}
+
 type Ev struct {
 	termbox.Event
 	ttype string
@@ -70,17 +78,24 @@ func createAndSave(fname string, buf []rune) {
 	fmt.Fprintf(outf, string(buf))
 }
 
+func saveBuf(fname string, buf []rune, modified bool) {
+	if modified {
+		createAndSave(fname, buf)
+		//save it dang it
+	}
+}
+
 
 func draw(s <-chan Ev) chan bool {
 
 	offset := 0
-	_, Y := termbox.Size()
+	X, Y := termbox.Size()
 
 	buf := make([]rune, 0, 0)
 	res := make(chan bool)
 	write_pixel := writePixelFactory(0, 0)
 	cville := makeCircleVille(*R)
-	saveit := make(chan Ev, 10)
+	saveit := make(chan Ev)
 	go func() {
 		fname := nextFile()
 		modified := true
@@ -89,27 +104,26 @@ func draw(s <-chan Ev) chan bool {
 		for {
 			select {
 			case ev := <-saveit:
-				log.Println("found save it event")
 				modified = true
 				timer = time.After(10 * time.Second)
 				unsaved++
 				if ev.Key == termbox.KeySpace {
 					buf = append(buf, ' ')
-				} else {
+				} else if ev.Key == termbox.KeyBackspace ||
+					ev.Key == termbox.KeyBackspace2 {
+					buf = buf[:len(buf)-1]
+ 				} else {
 					buf = append(buf, ev.Ch)
 				}
-				if unsaved > 20 {
-					createAndSave(fname, buf)
+				if unsaved > 20 || ev.ttype == "quit" {
+					saveBuf(fname, buf, modified)
 					modified = false
 					unsaved = 0
 				}
 			case <-timer:
 				timer = time.After(10 * time.Second)
-				if modified {
-					log.Println("idle timeout saving")
-					createAndSave(fname, buf)
-					//save it dang it
-				}
+				log.Println("idle timeout saving")
+				saveBuf(fname, buf, modified)
 				modified = false
 			}
 		}
@@ -119,37 +133,43 @@ func draw(s <-chan Ev) chan bool {
 	inword := true
 	loop:
 		for {
-			ev := <-s
-			saveit <- ev
-			switch ev.ttype {
-			case "insert":
-				x, y, err := cville.getxy(offset)
-				if err != nil {
-					offset = 0
-					x, y, err = cville.getxy(offset)
-				}
-				write_pixel(x, y, ev.Ch)
-				offset += 1
-				if ev.Key == termbox.KeySpace && inword {
-					words++
-					inword = false
-				} else {
-					inword = true
-				}
-				draw_n(0, Y-1, words, termbox.ColorRed, '#')
-				termbox.Flush()
-			case "backspace":
-				offset -= 1
-				x, y, err := cville.getxy(offset)
-				if err != nil {
-					offset = 0
-					x, y, err = cville.getxy(offset)
-				}
-				write_pixel(x, y, ' ')
-				termbox.Flush()
-			case "quit":
-				break loop
+			select {
+			case ev := <-s:
+				saveit <- ev
+				switch ev.ttype {
+				case "insert":
+					x, y, err := cville.getxy(offset)
+					if err != nil {
+						offset = 0
+						x, y, err = cville.getxy(offset)
+					}
+					offset += 1
+					if ev.Key == termbox.KeySpace {
+						if inword {
+							words++
+						} 
+						write_pixel(x, y, ' ')
+						inword = false
+					} else {
+						write_pixel(x, y, ev.Ch)
+						inword = true
+					}
+					
+					draw_words(X, Y, words)
+					termbox.Flush()
+				case "backspace":
+					offset -= 1
+					x, y, err := cville.getxy(offset)
+					if err != nil {
+						offset = 0
+						x, y, err = cville.getxy(offset)
+					}
+					write_pixel(x, y, ' ')
+					termbox.Flush()
+				case "quit":
+					break loop
 
+				}
 			}
 
 		}
