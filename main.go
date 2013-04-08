@@ -94,7 +94,8 @@ func draw(s <-chan Ev) chan bool {
 	buf := make([]rune, 0, 0)
 	res := make(chan bool)
 	write_pixel := writePixelFactory(0, 0)
-	cville := makeCircleVille(*R)
+	//cville := makeCircleVille(*R)
+	cville := makeRectVille(-5, -5, 10, 10)
 	saveit := make(chan Ev)
 	go func() {
 		fname := nextFile()
