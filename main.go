@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+var nomad = flag.Bool("notmad", false, "show's you aren't the madman")
+
 func draw_n(x, y, count int, color termbox.Attribute, ch rune) {
 	for i := 0; i < count; i++ {
 		termbox.SetCell(x+i, y, ch, color, termbox.ColorDefault)
@@ -212,6 +214,10 @@ func nextFile() string {
 
 func main() {
 	flag.Parse()
+	if *nomad {
+		convertFiles()
+		return
+	}
 	err := termbox.Init()
 	if err != nil {
 		panic(err)
