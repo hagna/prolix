@@ -7,6 +7,7 @@ import (
 
 type madman struct {
 	termbox_event chan termbox.Event
+	buffers *[]buffer
 }
 
 
