@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/nsf/termbox-go"
 	"log"
+	"os"
 )
 
 type madman struct {
@@ -59,9 +60,15 @@ func new_madman() *madman {
 }
 
 func main() {
-	err := termbox.Init()
+	logfile, err := os.Create("log")
 	if err != nil {
 		log.Fatal(err)
+	}
+	log.SetOutput(logfile)
+	if err = termbox.Init(); err != nil {
+		log.Fatal(err)
+	} else {
+		log.Println("termbox.Init()")
 	}
 	defer termbox.Close()
 	termbox.SetInputMode(termbox.InputAlt)
