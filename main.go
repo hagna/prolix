@@ -4,6 +4,7 @@ import (
 	"github.com/nsf/termbox-go"
 	"log"
 	"os"
+	"unicode/utf8"
 )
 
 const (
@@ -14,6 +15,7 @@ type madman struct {
 	termbox_event chan termbox.Event
 	buffer *buffer
 	quitflag bool
+	cursor cursor_location
 }
 
 
@@ -53,10 +55,24 @@ loop:
 	}
 }	
 
+func (m *madman) insert_rune(r rune) {
+	var data [utf8.UTFMax]byte
+	l := utf8.EncodeRune(data[:], r)
+	c := m.cursor
+	c.boffset += l
+	m.move_cursor_to(c)
+
+}
+
 func (m *madman) on_key(ev *termbox.Event) {
 	switch ev.Key {
 	case termbox.KeyCtrlQ:
 		m.quitflag = true
+	case termbox.KeySpace:
+		m.insert_rune(' ')
+	}
+	if ev.Ch != 0 {
+		m.insert_rune(ev.Ch)
 	}
 }	
 
