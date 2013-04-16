@@ -6,9 +6,14 @@ import (
 	"os"
 )
 
+const (
+	tabstop_length            = 8
+)
+
 type madman struct {
 	termbox_event chan termbox.Event
-	buffers *[]buffer
+	buffer *buffer
+	quitflag bool
 }
 
 
@@ -48,15 +53,40 @@ loop:
 	}
 }	
 
+func (m *madman) on_key(ev *termbox.Event) {
+	switch ev.Key {
+	case termbox.KeyCtrlQ:
+		m.quitflag = true
+	}
+}	
+
+func (m *madman) resize() {
+}
+
 func (m *madman) handle_event(ev *termbox.Event) bool {
-	return false
+	switch ev.Type {
+	case termbox.EventKey:
+		m.on_key(ev)
+		if m.quitflag {
+			return false
+		}
+	case termbox.EventResize:
+		termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
+		m.resize()
+	case termbox.EventError:
+		log.Fatal(ev.Err)
+	}
+	
+	return true
 }
 
 func (m *madman) draw() {
 }
 
 func new_madman() *madman {
-	return new(madman)
+	m := new(madman)
+	m.buffer = new_empty_buffer()
+	return m
 }
 
 func main() {
