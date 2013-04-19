@@ -44,6 +44,9 @@ type madman struct {
 	buffer        *buffer
 	quitflag      bool
 	cursor        cursor_location
+	oneline       bool
+	Height        int
+	Width         int
 }
 
 // When 'cursor_line' was changed, call this function to possibly adjust the
@@ -219,12 +222,82 @@ func (m *madman) handle_event(ev *termbox.Event) bool {
 
 	return true
 }
+
 func (m *madman) cursor_position() (int, int) {
 	y := m.cursor.line_num - m.top_line_num
 	x := m.cursor_voffset - m.line_voffset
 	return x, y
 }
+
+func (m *madman) height() int {
+/*	if m.oneline {
+		return m.Height - 1
+	}*/
+	return m.Height
+}
+
+func (m *madman) draw_line(line *line, line_num, coff, line_voffset int) {
+	x := 0
+	tabstop := 0
+	bx := 0
+	data := line.data
+	log.Printf("draw_line data is %s", string(line.data))
+
+	for {
+		rx := x - line_voffset
+		if len(data) == 0 {
+			break
+		}
+
+		if x == tabstop {
+			tabstop += tabstop_length
+		}
+
+		if rx >= m.Width {
+			log.Println("this shouldn't happen")
+		}
+		r, rlen := utf8.DecodeRune(data)
+		switch {
+		default:
+			if rx >= 0 {
+				cells := termbox.CellBuffer()
+				cells[coff+rx] = m.make_cell(line_num, bx, r)
+			}
+			x++
+		}
+		data = data[rlen:]
+		bx += rlen
+	}
+}
+
+func (m *madman) make_cell(line_num, bx int, r rune) termbox.Cell {
+	log.Printf("make_cell %d %d %s", line_num, bx, r)
+	return termbox.Cell{
+		Ch: r,
+		Fg: termbox.ColorWhite,
+		Bg: termbox.ColorDefault,
+	}
+}
+
 func (m *madman) draw() {
+	line := m.top_line
+	coff := 0
+	log.Printf("draw m.height is %d", m.height())
+	for y, h := 0, m.height(); y < h; y++ {
+		if line == nil {
+			log.Println("line is nil")
+			break
+		}
+
+		if line == m.cursor.line {
+			m.draw_line(line, m.top_line_num+y, coff, m.line_voffset)
+		} else {
+			m.draw_line(line, m.top_line_num+y, coff, 0)
+		}
+
+		coff = m.Width
+		line = line.next
+	}
 	cx, cy := m.cursor_position()
 	termbox.SetCursor(cx, cy)
 }
@@ -233,6 +306,8 @@ func new_madman() *madman {
 	m := new(madman)
 	m.buffer = new_empty_buffer()
 	m.move_cursor_beginning_of_file()
+	m.top_line = m.cursor.line
+	m.top_line_num = m.cursor.line_num
 	return m
 }
 
@@ -251,6 +326,7 @@ func main() {
 	termbox.SetInputMode(termbox.InputAlt)
 
 	madman := new_madman()
+	madman.Height, madman.Width = termbox.Size()
 	//madman.resize()
 	madman.draw()
 	termbox.SetCursor(madman.cursor_position())
