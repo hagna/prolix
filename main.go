@@ -139,7 +139,6 @@ func (m *madman) move_cursor_beginning_of_file() {
 	m.move_cursor_to(c)
 }
 func (m *madman) move_cursor_to(c cursor_location) {
-	log.Println("move cursor to")
 	//v.dirty |= dirty_status
 	if c.boffset < 0 {
 		bo, co, vo := c.line.find_closest_offsets(m.last_cursor_voffset)
@@ -153,7 +152,6 @@ func (m *madman) move_cursor_to(c cursor_location) {
 		m.cursor_voffset = vo
 	}
 
-	log.Println("after vo bo co")
 	if c.boffset >= 0 {
 		m.last_cursor_voffset = m.cursor_voffset
 	}
@@ -168,8 +166,6 @@ func (m *madman) move_cursor_to(c cursor_location) {
 	m.cursor.line_num = c.line_num
 	m.adjust_line_voffset()
 	m.adjust_top_line()
-	log.Println("after adjust_top_line")
-	log.Println("after adjust_top_line")
 
 	/*if v.ac != nil {
 		// update autocompletion on every cursor move
@@ -184,7 +180,6 @@ func (m *madman) insert_rune(r rune) {
 	var data [utf8.UTFMax]byte
 	l := utf8.EncodeRune(data[:], r)
 	c := m.cursor
-	log.Println(c)
 	c.line.data = append(c.line.data, byte(r))
 	c.boffset += l
 	m.move_cursor_to(c)
@@ -197,6 +192,15 @@ func (m *madman) on_key(ev *termbox.Event) {
 		m.quitflag = true
 	case termbox.KeySpace:
 		m.insert_rune(' ')
+	case termbox.KeyEnter:
+		b := m.buffer
+		b.lines_n++
+		l := m.cursor.line
+		l.next = new(line)
+		l.prev = l
+		l = l.next
+		b.last_line = l
+		m.move_cursor_next_line()
 	}
 	if ev.Ch != 0 {
 		m.insert_rune(ev.Ch)
@@ -236,33 +240,37 @@ func (m *madman) height() int {
 	return m.Height
 }
 
+// Move cursor to the next line.
+func (v *madman) move_cursor_next_line() {
+	c := v.cursor
+	if !c.last_line() {
+		c = cursor_location{c.line.next, c.line_num + 1, -1}
+		v.move_cursor_to(c)
+	} else {
+		//v.ctx.set_status("End of buffer")
+	}
+}
+
 func (m *madman) draw_line(line *line, line_num, coff, line_voffset int) {
 	x := 0
-	tabstop := 0
 	bx := 0
 	data := line.data
-	log.Printf("draw_line data is %s", string(line.data))
+	log.Printf("draw_line datfa is %s", string(line.data))
 
 	for {
-		rx := x - line_voffset
 		if len(data) == 0 {
 			break
 		}
 
-		if x == tabstop {
-			tabstop += tabstop_length
-		}
-
-		if rx >= m.Width {
+		if x >= m.Width {
 			log.Println("this shouldn't happen")
 		}
 		r, rlen := utf8.DecodeRune(data)
 		switch {
 		default:
-			if rx >= 0 {
-				cells := termbox.CellBuffer()
-				cells[coff+rx] = m.make_cell(line_num, bx, r)
-			}
+			cells := termbox.CellBuffer()
+			log.Printf("putting %s at %d", r, coff+x) 
+			cells[coff+x] = m.make_cell(line_num, bx, r)
 			x++
 		}
 		data = data[rlen:]
@@ -271,7 +279,6 @@ func (m *madman) draw_line(line *line, line_num, coff, line_voffset int) {
 }
 
 func (m *madman) make_cell(line_num, bx int, r rune) termbox.Cell {
-	log.Printf("make_cell %d %d %s", line_num, bx, r)
 	return termbox.Cell{
 		Ch: r,
 		Fg: termbox.ColorWhite,
@@ -282,10 +289,8 @@ func (m *madman) make_cell(line_num, bx int, r rune) termbox.Cell {
 func (m *madman) draw() {
 	line := m.top_line
 	coff := 0
-	log.Printf("draw m.height is %d", m.height())
 	for y, h := 0, m.height(); y < h; y++ {
 		if line == nil {
-			log.Println("line is nil")
 			break
 		}
 
@@ -295,7 +300,7 @@ func (m *madman) draw() {
 			m.draw_line(line, m.top_line_num+y, coff, 0)
 		}
 
-		coff = m.Width
+		coff += m.Width
 		line = line.next
 	}
 	cx, cy := m.cursor_position()
@@ -326,7 +331,7 @@ func main() {
 	termbox.SetInputMode(termbox.InputAlt)
 
 	madman := new_madman()
-	madman.Height, madman.Width = termbox.Size()
+	madman.Width, madman.Height = termbox.Size()
 	//madman.resize()
 	madman.draw()
 	termbox.SetCursor(madman.cursor_position())

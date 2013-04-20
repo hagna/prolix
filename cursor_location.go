@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"bytes"
 	"unicode/utf8"
 )
@@ -65,10 +64,7 @@ func (a cursor_location) distance(b cursor_location) int {
 
 // Find a visual and a character offset for a given cursor
 func (c *cursor_location) voffset_coffset() (vo, co int) {
-	log.Println("voffset_coffset")
-	log.Println(c.boffset)
 	data := c.line.data[:c.boffset]
-	log.Println("wha should have died")
 	for len(data) > 0 {
 		r, rlen := utf8.DecodeRune(data)
 		data = data[rlen:]
