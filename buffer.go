@@ -2,12 +2,29 @@ package main
 
 import (
 	"unicode/utf8"
+	"fmt"
 )
 
 type line struct {
 	data []byte
 	next *line	
 	prev *line
+}
+
+func (l *line) String() string {
+	cur := "nil"
+	next := "nil"
+	prev := "nil"
+	if l != nil {
+		cur = string(l.data)
+	}
+	if l.next != nil {
+		next = string(l.next.data)
+	}
+	if l.prev != nil {
+		prev = string(l.prev.data)
+	}
+	return fmt.Sprintf("%s <- %s -> %s", prev, cur, next)	
 }
 
 // Find a set of closest offsets for a given visual offset

@@ -180,10 +180,52 @@ func (m *madman) insert_rune(r rune) {
 	var data [utf8.UTFMax]byte
 	l := utf8.EncodeRune(data[:], r)
 	c := m.cursor
+	if byte(r) != ' ' && c.bol() {
+		// autowrap previous line
+		if c.line.prev != nil {
+			s := c.line.prev.data
+			i := len(s)-1
+			if i == m.Width-1 {
+			count := 0
+			for s[i] != ' ' {
+				if count > 25 {
+					i = -1
+					break
+				}
+				i--
+				count++
+			}
+			if i > 0 {
+			c.line.prev.data = s[:i]
+			word := s[i+1:]
+			c.line.data = append(c.line.data, word...)
+			c.boffset += len(word)
+			for j := 0 ; j < len(word); j++ {
+				c.move_one_rune_forward()
+			}
+			}
+			}
+		}
+	}
 	c.line.data = append(c.line.data, byte(r))
 	c.boffset += l
+	c.move_one_rune_forward() // doens't update the view
+	// voffset means view offset
 	m.move_cursor_to(c)
+	if c.boffset >= m.Width {
+		m.nextnewline()
+	}	
 
+}
+
+func (m *madman) nextnewline() {
+		b := m.buffer
+		b.lines_n++
+		m.cursor.line.next = new(line)
+		m.cursor.line.next.prev = m.cursor.line
+		m.move_cursor_next_line()
+		
+		b.last_line = m.cursor.line
 }
 
 func (m *madman) on_key(ev *termbox.Event) {
@@ -193,14 +235,7 @@ func (m *madman) on_key(ev *termbox.Event) {
 	case termbox.KeySpace:
 		m.insert_rune(' ')
 	case termbox.KeyEnter:
-		b := m.buffer
-		b.lines_n++
-		l := m.cursor.line
-		l.next = new(line)
-		l.prev = l
-		l = l.next
-		b.last_line = l
-		m.move_cursor_next_line()
+		m.nextnewline()
 	}
 	if ev.Ch != 0 {
 		m.insert_rune(ev.Ch)
@@ -255,7 +290,7 @@ func (m *madman) draw_line(line *line, line_num, coff, line_voffset int) {
 	x := 0
 	bx := 0
 	data := line.data
-	log.Printf("draw_line datfa is %s", string(line.data))
+	cells := termbox.CellBuffer()
 
 	for {
 		if len(data) == 0 {
@@ -263,18 +298,21 @@ func (m *madman) draw_line(line *line, line_num, coff, line_voffset int) {
 		}
 
 		if x >= m.Width {
-			log.Println("this shouldn't happen")
 		}
 		r, rlen := utf8.DecodeRune(data)
 		switch {
 		default:
-			cells := termbox.CellBuffer()
-			log.Printf("putting %s at %d", r, coff+x) 
 			cells[coff+x] = m.make_cell(line_num, bx, r)
 			x++
 		}
 		data = data[rlen:]
 		bx += rlen
+	}
+	// clear the rest of the line for autowrap
+	if x < m.Width {
+		for i:=x; i<m.Width; i++ {
+			cells[coff+i] = m.make_cell(line_num, 0, ' ')
+		}
 	}
 }
 
