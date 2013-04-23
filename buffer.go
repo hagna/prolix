@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -56,6 +57,8 @@ type buffer struct {
 
 	words_cache       llrb_tree
 	words_cache_valid bool
+
+	path string
 }
 
 func new_empty_buffer() *buffer {
@@ -105,6 +108,44 @@ func new_buffer_reader(buffer *buffer) *buffer_reader {
 	br.line = buffer.first_line
 	br.offset = 0
 	return br
+}
+
+func new_buffer(r io.Reader) (*buffer, error) {
+	var err error
+	var prevline *line
+
+	br := bufio.NewReader(r)
+	l := new(line)
+	b := new(buffer)
+	b.lines_n = 1
+	b.first_line = l
+	for {
+		l.data, err = br.ReadBytes('\n')
+		if err != nil {
+			// last line was read
+			break
+		} else {
+			b.bytes_n += len(l.data)
+
+			// cut off the '\n' character
+			l.data = l.data[:len(l.data)-1]
+		}
+
+		b.lines_n++
+		l.next = new(line)
+		l.prev = prevline
+		prevline = l
+		l = l.next
+	}
+	l.prev = prevline
+	b.last_line = l
+
+	// io.EOF is not an error
+	if err == io.EOF {
+		err = nil
+	}
+
+	return b, err
 }
 
 func (br *buffer_reader) Read(data []byte) (int, error) {

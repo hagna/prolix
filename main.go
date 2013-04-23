@@ -1,20 +1,23 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"github.com/nsf/termbox-go"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
-	"unicode/utf8"
 	"time"
+	"unicode/utf8"
 )
 
+var fname = flag.String("fname", "", "File to open for testing")
+
 const (
-	tabstop_length = 8
+	tabstop_length     = 8
 	autosave_runecount = 30
-	autosave_interval = time.Duration(3 * time.Second)
+	autosave_interval  = time.Duration(3 * time.Second)
 )
 
 type view_location struct {
@@ -54,8 +57,8 @@ type madman struct {
 	Height        int
 	Width         int
 	path          string
-	dirty_runes	int	//for autosave
-	autosave	<-chan time.Time
+	dirty_runes   int //for autosave
+	autosave      <-chan time.Time
 }
 
 // When 'cursor_line' was changed, call this function to possibly adjust the
@@ -377,13 +380,21 @@ func (m *madman) draw() {
 	termbox.SetCursor(cx, cy)
 }
 
-func new_madman() *madman {
+func new_madman(b *buffer) *madman {
 	m := new(madman)
-	m.buffer = new_empty_buffer()
+	if b == nil {
+		m.buffer = new_empty_buffer()
+	} else {
+		m.buffer = b
+	}
 	m.move_cursor_beginning_of_file()
 	m.top_line = m.cursor.line
 	m.top_line_num = m.cursor.line_num
-	m.path = nextFile()
+	if b.path == nil {
+		b.path = nextFile()
+	} else {
+		m.path = b.path
+	}
 	m.dirty_runes = 0
 	m.renewSavetimer()
 	return m
@@ -424,7 +435,33 @@ func (m *madman) save() {
 	m.buffer.save_as(m.path)
 }
 
+func new_buffer_from_file(filename string) (*buffer, error) {
+	log.Println("newbuffer_from_File")
+	fullpath := abs_path(filename)
+	var buf *buffer
+
+	_, err := os.Stat(fullpath)
+	if err != nil {
+		// assume the file is just not there
+		buf = new_empty_buffer()
+	} else {
+		f, err := os.Open(fullpath)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		buf, err = new_buffer(f)
+		if err != nil {
+			return nil, err
+		}
+		buf.path = fullpath
+	}
+
+	return buf, nil
+}
+
 func main() {
+	flag.Parse()
 	logfile, err := os.Create("log")
 	if err != nil {
 		log.Fatal(err)
@@ -438,7 +475,12 @@ func main() {
 	defer termbox.Close()
 	termbox.SetInputMode(termbox.InputAlt)
 
-	madman := new_madman()
+	var buf *buffer
+	buf = nil
+	if *fname != "" {
+		buf, _ = new_buffer_from_file(*fname)
+	}
+	madman := new_madman(buf)
 	madman.Width, madman.Height = termbox.Size()
 	//madman.resize()
 	madman.draw()
