@@ -184,26 +184,26 @@ func (m *madman) insert_rune(r rune) {
 		// autowrap previous line
 		if c.line.prev != nil {
 			s := c.line.prev.data
-			i := len(s)-1
+			i := len(s) - 1
 			if i == m.Width-1 {
-			count := 0
-			for s[i] != ' ' {
-				if count > 25 {
-					i = -1
-					break
+				count := 0
+				for s[i] != ' ' {
+					if count > 25 {
+						i = -1
+						break
+					}
+					i--
+					count++
 				}
-				i--
-				count++
-			}
-			if i > 0 {
-			c.line.prev.data = s[:i]
-			word := s[i+1:]
-			c.line.data = append(c.line.data, word...)
-			c.boffset += len(word)
-			for j := 0 ; j < len(word); j++ {
-				c.move_one_rune_forward()
-			}
-			}
+				if i > 0 {
+					c.line.prev.data = s[:i]
+					word := s[i+1:]
+					c.line.data = append(c.line.data, word...)
+					c.boffset += len(word)
+					for j := 0; j < len(word); j++ {
+						c.move_one_rune_forward()
+					}
+				}
 			}
 		}
 	}
@@ -214,18 +214,18 @@ func (m *madman) insert_rune(r rune) {
 	m.move_cursor_to(c)
 	if c.boffset >= m.Width {
 		m.nextnewline()
-	}	
+	}
 
 }
 
 func (m *madman) nextnewline() {
-		b := m.buffer
-		b.lines_n++
-		m.cursor.line.next = new(line)
-		m.cursor.line.next.prev = m.cursor.line
-		m.move_cursor_next_line()
-		
-		b.last_line = m.cursor.line
+	b := m.buffer
+	b.lines_n++
+	m.cursor.line.next = new(line)
+	m.cursor.line.next.prev = m.cursor.line
+	m.move_cursor_next_line()
+
+	b.last_line = m.cursor.line
 }
 
 func (m *madman) on_key(ev *termbox.Event) {
@@ -269,7 +269,7 @@ func (m *madman) cursor_position() (int, int) {
 }
 
 func (m *madman) height() int {
-/*	if m.oneline {
+	/*	if m.oneline {
 		return m.Height - 1
 	}*/
 	return m.Height
@@ -310,7 +310,7 @@ func (m *madman) draw_line(line *line, line_num, coff, line_voffset int) {
 	}
 	// clear the rest of the line for autowrap
 	if x < m.Width {
-		for i:=x; i<m.Width; i++ {
+		for i := x; i < m.Width; i++ {
 			cells[coff+i] = m.make_cell(line_num, 0, ' ')
 		}
 	}

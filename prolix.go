@@ -1,12 +1,12 @@
 package main
 
 import (
-	"log"
-	"bufio"	
+	"bufio"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"path/filepath"
-	"io"
 )
 
 func convertFiles() {
@@ -19,7 +19,7 @@ func convertFiles() {
 		log.Println(err)
 	}
 	defer f.Close()
-	for i:=0; i<len(lst); i++ {
+	for i := 0; i < len(lst); i++ {
 		fmt.Println(lst[i])
 		st, err := os.Stat(lst[i])
 		if err != nil {
@@ -47,4 +47,3 @@ func convertFiles() {
 		af.Close()
 	}
 }
-		
