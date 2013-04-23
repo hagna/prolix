@@ -384,17 +384,14 @@ func new_madman(b *buffer) *madman {
 	m := new(madman)
 	if b == nil {
 		m.buffer = new_empty_buffer()
+		m.path = nextFile()
 	} else {
 		m.buffer = b
+		m.path = b.path
 	}
 	m.move_cursor_beginning_of_file()
 	m.top_line = m.cursor.line
 	m.top_line_num = m.cursor.line_num
-	if b.path == nil {
-		b.path = nextFile()
-	} else {
-		m.path = b.path
-	}
 	m.dirty_runes = 0
 	m.renewSavetimer()
 	return m
