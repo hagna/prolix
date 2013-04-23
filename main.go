@@ -8,10 +8,13 @@ import (
 	"path/filepath"
 	"strconv"
 	"unicode/utf8"
+	"time"
 )
 
 const (
 	tabstop_length = 8
+	autosave_runecount = 30
+	autosave_interval = time.Duration(3 * time.Second)
 )
 
 type view_location struct {
@@ -51,6 +54,8 @@ type madman struct {
 	Height        int
 	Width         int
 	path          string
+	dirty_runes	int	//for autosave
+	autosave	<-chan time.Time
 }
 
 // When 'cursor_line' was changed, call this function to possibly adjust the
@@ -118,6 +123,8 @@ func (m *madman) main_loop() {
 			m.consume_more_events()
 			m.draw()
 			termbox.Flush()
+		case <-m.autosave:
+			m.timeoutSave()
 		}
 	}
 }
@@ -180,6 +187,20 @@ func (m *madman) move_cursor_to(c cursor_location) {
 	}*/
 }
 
+func (m *madman) maybeSave() {
+	if m.dirty_runes > autosave_runecount {
+		log.Println("autosave")
+		m.save()
+	}
+}
+
+func (m *madman) timeoutSave() {
+	if m.dirty_runes > 0 {
+		log.Println("autosave because of timeout")
+		m.save()
+	}
+}
+
 func (m *madman) insert_rune(r rune) {
 	var data [utf8.UTFMax]byte
 	l := utf8.EncodeRune(data[:], r)
@@ -219,7 +240,14 @@ func (m *madman) insert_rune(r rune) {
 	if c.boffset >= m.Width {
 		m.nextnewline()
 	}
+	m.dirty_runes++
+	m.renewSavetimer()
+	m.maybeSave()
 
+}
+
+func (m *madman) renewSavetimer() {
+	m.autosave = time.After(autosave_interval)
 }
 
 func (m *madman) nextnewline() {
@@ -356,6 +384,8 @@ func new_madman() *madman {
 	m.top_line = m.cursor.line
 	m.top_line_num = m.cursor.line_num
 	m.path = nextFile()
+	m.dirty_runes = 0
+	m.renewSavetimer()
 	return m
 }
 
@@ -390,6 +420,7 @@ func nextFile() string {
 }
 
 func (m *madman) save() {
+	m.dirty_runes = 0
 	m.buffer.save_as(m.path)
 }
 
@@ -414,5 +445,5 @@ func main() {
 	termbox.SetCursor(madman.cursor_position())
 	termbox.Flush()
 	madman.main_loop()
-	madman.save()
+	madman.save() // save on quit too
 }
