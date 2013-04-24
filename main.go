@@ -271,6 +271,20 @@ func (m *madman) on_key(ev *termbox.Event) {
 		m.insert_rune(' ')
 	case termbox.KeyEnter:
 		m.nextnewline()
+	case termbox.KeyBackspace:
+	case termbox.KeyBackspace2: 
+		l := m.cursor.line
+		m.cursor.move_one_word_backward()
+		if l != m.cursor.line {
+			//move to prev line!
+			b := m.buffer
+			b.lines_n--
+			m.cursor.line.next = nil
+			b.last_line = m.cursor.line
+		}
+		m.move_cursor_to(m.cursor)
+		b := m.cursor.line.data
+		m.cursor.line.data = b[:m.cursor.boffset]
 	}
 	if ev.Ch != 0 {
 		m.insert_rune(ev.Ch)
