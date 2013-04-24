@@ -272,7 +272,7 @@ func (m *madman) on_key(ev *termbox.Event) {
 	case termbox.KeyEnter:
 		m.nextnewline()
 	case termbox.KeyBackspace:
-	case termbox.KeyBackspace2: 
+	case termbox.KeyBackspace2:
 		l := m.cursor.line
 		m.cursor.move_one_word_backward()
 		if l != m.cursor.line {
