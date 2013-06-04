@@ -2,12 +2,9 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"github.com/nsf/termbox-go"
 	"log"
 	"os"
-	"path/filepath"
-	"strconv"
 	"time"
 	"unicode/utf8"
 )
@@ -46,6 +43,7 @@ type view_location struct {
 	// movement, this one must be changed as well
 	last_cursor_voffset int
 }
+
 
 type madman struct {
 	view_location
@@ -271,6 +269,10 @@ func (m *madman) on_key(ev *termbox.Event) {
 		m.insert_rune(' ')
 	case termbox.KeyEnter:
 		m.nextnewline()
+	case termbox.KeyArrowRight:
+		m.nextBuffer()
+	case termbox.KeyArrowLeft:
+		m.prevBuffer()
 	case termbox.KeyBackspace:
 	case termbox.KeyBackspace2:
 		l := m.cursor.line
@@ -395,6 +397,7 @@ func (m *madman) draw() {
 }
 
 func new_madman(b *buffer) *madman {
+	cur := newcurfile()
 	m := new(madman)
 	if b == nil {
 		m.buffer = new_empty_buffer()
@@ -409,36 +412,6 @@ func new_madman(b *buffer) *madman {
 	m.dirty_runes = 0
 	m.renewSavetimer()
 	return m
-}
-
-func nextFile() string {
-	lst, err := filepath.Glob("a*")
-	if err != nil {
-		log.Fatal(err)
-	}
-	a := []int{}
-	for i := 0; i < len(lst); i++ {
-		v, err := strconv.Atoi(lst[i][1:])
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-		a = append(a, v)
-	}
-	if len(a) > 0 {
-		lastfile := fmt.Sprintf("a%d", max(a))
-		finf, err := os.Stat(lastfile)
-		if err != nil {
-			log.Println(err)
-		}
-		log.Printf("size of last file was %d", finf.Size())
-		if finf.Size() < 3 {
-			log.Printf("recycling last file %s", lastfile)
-			return lastfile
-		}
-		return fmt.Sprintf("a%d", max(a)+1)
-	}
-	return "a1"
 }
 
 func (m *madman) save() {
